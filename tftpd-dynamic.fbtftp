@@ -1,0 +1,233 @@
+#!/usr/bin/env python3
+#
+# vim: tabstop=4 expandtab shiftwidth=4 softtabstop=4
+#
+# (C) 2015 German Skalaukhov <keenser.sg@gmail.com>
+# tftpd dynamic
+#
+
+import daemon
+import daemon.pidfile
+import lockfile
+import pwd
+import grp
+import signal
+import sys
+import setproctitle
+import logging
+import logging.handlers
+import io
+import os
+import jinja2
+try:
+    import fbtftp
+except ImportError:
+    sys.stderr.write("install tftpy with 'pip3 install fbtftp'\n")
+    sys.exit(1)
+
+pkgversion = "1.2-12"
+servicename = "tftpd-dynamic"
+servicedesc = "tftpd server with dynamic file generation"
+
+def getoptions():
+    import argparse
+    parser = argparse.ArgumentParser(
+        description="{0} {1}".format(servicedesc, pkgversion))
+
+    parser.add_argument("-v", "--verbose",
+        dest="verbosity",
+        action="count",
+        help="print more diagnostic messages (option can be given multiple times)",
+        default=0
+    )
+
+    parser.add_argument("-l", "--log",
+        dest="logfile",
+        nargs="?",
+        help="log file, default: %(default)s, %(const)s if enabled",
+        const="/var/log/{0}/{0}.log".format(servicename)
+    )
+
+    parser.add_argument("-s", "--syslog",
+        dest="syslog",
+        action="store_true",
+        help="log to syslog (default: off)",
+        default=False
+    )
+
+    parser.add_argument("-p", "--pid",
+        dest="pid",
+        nargs="?",
+        help="pid file, default: %(default)s, %(const)s if enabled",
+        const="/var/run/{0}/{0}.pid".format(servicename)
+    )
+
+    parser.add_argument("-f", "--foreground",
+        dest="foreground",
+        action="store_true",
+        help="stay in foreground (default: %(default)s)",
+        default=False
+    )
+
+    group = parser.add_argument_group(
+        "tftp server",
+        "tftp server settings"
+    )
+
+    group.add_argument("--ip",
+        dest="ip",
+        help="ip address to bind to (default: INADDR_ANY)",
+        default="::"
+    )
+    group.add_argument("--port",
+        dest="port",
+        type=int,
+        help="local port to use (default: %(default)s)",
+        default=69
+    )
+    group.add_argument(
+        '--retries',
+        type=int,
+        default=5,
+        help='number of per-packet retries'
+    )
+    group.add_argument(
+        '--timeout',
+        type=int,
+        default=2,
+        help='timeout for packet retransmission'
+    )
+    group.add_argument("--uid",
+        dest="uid",
+        help="run server on background with specific uid (default: %(default)s)",
+        default=None
+    )
+    group.add_argument("--gid",
+        dest="gid",
+        help="run server on backgroupd with specific gid (default: %(default)s)",
+        default=None
+    )
+    group.add_argument("-t", "--template",
+        dest="template",
+        help="templates path dir",
+        default=None
+    )
+    group.add_argument("-r", "--root",
+        dest="root",
+        required=True,
+        help="path to serve from"
+    )
+
+    return parser.parse_args()
+
+class DynamicHandler(fbtftp.base_handler.BaseHandler):
+    def __init__(self, server_addr, peer, path, options, root, env, stats_callback):
+        self._root = root
+        self.env = env
+        super().__init__(server_addr, peer, path, options, stats_callback)
+
+    def get_response_data(self):
+        path = os.path.join(self._root, self._path)
+        if os.path.exists(path):
+            return open(path, "rb")
+        else:
+            try:
+                template = self.env.get_template(self._path)
+                cfg = template.render({'file':self._path, 'ip':self._peer[0], 'port':self._peer[0]})
+                return io.BytesIO(cfg.encode('UTF-8'))
+            except jinja2.exceptions.TemplateNotFound:
+                return None
+
+def print_session_stats(stats):
+    logging.info('Stats: for %r requesting %r' % (stats.peer, stats.file_path))
+    logging.info('Error: %r' % stats.error)
+    logging.info('Time spent: %dms' % (stats.duration() * 1e3))
+    logging.info('Packets sent: %d' % stats.packets_sent)
+    logging.info('Packets ACKed: %d' % stats.packets_acked)
+    logging.info('Bytes sent: %d' % stats.bytes_sent)
+    logging.info('Options: %r' % stats.options)
+    logging.info('Blksize: %r' % stats.blksize)
+    logging.info('Retransmits: %d' % stats.retransmits)
+    logging.info('Server port: %d' % stats.server_addr[1])
+    logging.info('Client port: %d' % stats.peer[1])
+
+
+class DynamicServer(fbtftp.base_server.BaseServer):
+    def __init__(self, options):
+        self.options = options
+        self.env = jinja2.Environment(
+            loader = jinja2.FileSystemLoader(options.template),
+            trim_blocks = True, lstrip_blocks = True
+        )
+        super().__init__(options.ip, options.port, options.retries, options.timeout)
+
+    def get_handler(self, server_addr, peer, path, options):
+        return DynamicHandler(server_addr, peer, path, options, self.options.root, self.env, print_session_stats)
+
+def main():
+    options = getoptions()
+
+    setproctitle.setproctitle(servicename)
+
+    try:
+        with daemon.DaemonContext(
+            pidfile = daemon.pidfile.PIDLockFile(options.pid) if options.pid else None,
+            signal_map = {signal.SIGTERM: lambda signum, stack_frame: sys.exit(0)},
+            detach_process = not options.foreground,
+            stdout = sys.stdout if options.foreground else None,
+            stderr = sys.stderr if options.foreground else None,
+            uid = pwd.getpwnam(options.uid).pw_uid if options.uid else None,
+            gid = grp.getgrnam(options.gid).gr_gid if options.gid else None,
+            ) as context:
+            daemonize(options)
+    except lockfile.LockFailed as e:
+        sys.stderr.write("daemonize error: {}'\n".format(e))
+
+def daemonize(options):
+    if options.verbosity > 3:
+        options.verbosity = 3
+
+    level = (
+        logging.WARNING,
+        logging.INFO,
+        logging.DEBUG,
+        logging.NOTSET,
+        )[options.verbosity]
+
+    logger = logging.getLogger('')
+    logger.addHandler(logging.NullHandler())
+    logger.setLevel(level)
+    logformat = '%(asctime)s %(levelname)s:%(name)s: %(message)s'
+
+    if options.logfile:
+        filelogger = logging.handlers.WatchedFileHandler(options.logfile)
+        filelogger.setFormatter(logging.Formatter(logformat))
+        logger.addHandler(filelogger)
+
+    if options.syslog:
+        syslogger = logging.handlers.SysLogHandler(address = '/dev/log', facility = logging.handlers.SysLogHandler.LOG_LOCAL5)
+        syslogger.setFormatter(logging.Formatter('%(name)s: %(message)s'))
+        logger.addHandler(syslogger)
+
+    if options.foreground:
+        conslogger = logging.StreamHandler()
+        conslogger.setFormatter(logging.Formatter(logformat))
+        logger.addHandler(conslogger)
+
+    sys.excepthook = lambda excType, excValue, traceback: logging.getLogger('exception').error("Uncaught exception", exc_info=(excType, excValue, traceback))
+
+    log = logging.getLogger(servicename)
+
+    log.info("starting %s version %s", servicename, pkgversion)
+
+    server = DynamicServer(options)
+    try:
+        server.run()
+    except KeyboardInterrupt:
+        pass
+    finally:
+        server.close()
+        log.info('stop')
+
+if __name__ == '__main__':
+    main()

@@ -1,0 +1,5 @@
+systemctl stop tftpd-dynamic.service
+if [ "$1" = "purge" ] ; then
+        systemctl disable tftpd-dynamic.service
+        rm -r /var/run/tftpd-dynamic
+fi

@@ -1,0 +1,6 @@
+pip3 install py3tftp
+mkdir -p /var/run/tftpd-dynamic
+chown tftp:tftp /var/run/tftpd-dynamic
+systemctl --system daemon-reload
+systemctl enable tftpd-dynamic.service
+systemctl start tftpd-dynamic.service
