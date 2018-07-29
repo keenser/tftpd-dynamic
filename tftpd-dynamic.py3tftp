@@ -27,7 +27,7 @@ try:
     import py3tftp.protocols
     import py3tftp.file_io
 except ImportError:
-    sys.stderr.write("install tftpy with 'pip3 install py3tftp'\n")
+    sys.stderr.write("install py3tftp with 'pip3 install py3tftp'\n")
     sys.exit(1)
 
 pkgversion = "trunk"

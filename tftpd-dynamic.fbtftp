@@ -22,7 +22,7 @@ import jinja2
 try:
     import fbtftp
 except ImportError:
-    sys.stderr.write("install tftpy with 'pip3 install fbtftp'\n")
+    sys.stderr.write("install fbtftp with 'pip3 install fbtftp'\n")
     sys.exit(1)
 
 pkgversion = "1.2-12"

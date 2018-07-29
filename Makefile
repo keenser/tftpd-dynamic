@@ -1,6 +1,6 @@
 ARCH=all
 PKG_NAME=tftpd-dynamic
-PKG_VERSION=1.4-2
+PKG_VERSION=1.4-3
 PKG=$(PKG_NAME)_$(PKG_VERSION)_$(ARCH).deb
 
 all: $(PKG_NAME)
