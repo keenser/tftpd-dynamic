@@ -1,6 +1,7 @@
 ARCH=all
 PKG_NAME=tftpd-dynamic
-PKG_VERSION=1.4-3
+LIB=py3tftp
+PKG_VERSION=1.4-4
 PKG=$(PKG_NAME)_$(PKG_VERSION)_$(ARCH).deb
 
 all: $(PKG_NAME)
@@ -16,7 +17,8 @@ $(PKG_NAME)/DEBIAN/control: Makefile
 		if [ -e $@-e ] ; then rm $@-e ; fi ; \
 	fi
 
-$(PKG_NAME)/usr/bin/$(PKG_NAME): Makefile
+$(PKG_NAME)/usr/bin/$(PKG_NAME): Makefile $(PKG_NAME).$(LIB)
+	cp $(PKG_NAME).$(LIB) $@
 	@if [ "`grep "pkgversion =" $@ | awk '{print $$3}'`" != "\"$(PKG_VERSION)\"" ] ; then \
 		sed -i -e "s:pkgversion =.*:pkgversion = \"$(PKG_VERSION)\":g" $@ ; \
 		if [ -e $@-e ] ; then rm $@-e ; fi ; \

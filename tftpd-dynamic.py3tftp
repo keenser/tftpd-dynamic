@@ -74,12 +74,6 @@ def getoptions():
         default=False
     )
 
-    parser.add_argument("--systemd",
-        action="store_true",
-        default=False,
-        help="use systemd socket (default: %(default)s)",
-    )
-
     group = parser.add_argument_group(
         "tftp server",
         "tftp server settings"
@@ -300,7 +294,7 @@ def main():
             stderr = sys.stderr if options.foreground else None,
             uid = pwd.getpwnam(options.uid).pw_uid if options.uid else None,
             gid = grp.getgrnam(options.gid).gr_gid if options.gid else None,
-            files_preserve = [3] if options.systemd else None,
+            files_preserve = [3] if 'LISTEN_FDNAMES' in os.environ else None,
             working_directory = options.root,
             ) as context:
             daemonize(options)
@@ -346,7 +340,7 @@ def daemonize(options):
 
     loop = asyncio.get_event_loop()
 
-    sock = socket.fromfd(3, socket.AF_INET6, socket.SOCK_DGRAM) if options.systemd else None
+    sock = socket.fromfd(3, socket.AF_INET6, socket.SOCK_DGRAM) if 'LISTEN_FDNAMES' in os.environ else None
 
     transport, protocol = create_raw_datagram_endpoint(loop, 
             lambda: TFTPServerProtocol(loop, options),
