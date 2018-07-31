@@ -23,6 +23,7 @@ import os
 import jinja2
 import re
 import ipaddress
+import json
 try:
     import py3tftp.protocols
     import py3tftp.file_io
@@ -206,21 +207,45 @@ class FileNotFound():
 class TemplateReader(FileReader):
     def __init__(self, fname, chunk_size, mode, env, addr):
         self.env = env
-        self.filename = os.path.normpath(fname)
+        filename = os.path.normpath(fname).decode('UTF-8')
+        filejson = os.path.join(env.loader.searchpath[0], filename + '.json')
+
+        self.opt = {}
+
+        if os.path.exists(filejson):
+            try:
+                with open(filejson, 'r') as pf:
+                    self.opt.update(json.load(pf))
+            except (ValueError, FileNotFoundError) as e:
+                logging.error("loading %s: %s", filejson, e)
+
         ipaddr = ipaddress.ip_address(addr[0])
-        self.addr = str(ipaddr) if ipaddr.version == 4 else ipaddr.ipv4_mapped
-        self.port = addr[1]
+        if ipaddr.version == 6:
+            ipaddr = ipaddr.ipv4_mapped
+        ipint = ipaddress.ip_interface((ipaddr, self.opt.setdefault('prefixlen', 24)))
+
+        self.opt.update(
+            {
+                'file': filename,
+                'ip':ipint.ip,
+                'port': addr[1],
+                'gw': ipint.network.network_address + self.opt.setdefault('gwindent', 1),
+                'netmask': ipint.netmask,
+            }
+        )
         super().__init__(fname, chunk_size, mode)
 
     def _open_file(self):
         try:
-            filename = self.filename.decode('UTF-8')
-            template = self.env.get_template(filename)
-            cfg = template.render({'file':filename, 'ip':self.addr, 'port':self.port})
+            template = self.env.get_template(self.opt['file'])
+            cfg = template.render(self.opt)
             if self.mode == b'netascii':
                 return NetasciiReader(io.BytesIO(cfg.encode('UTF-8')))
             else:
                 return io.BytesIO(cfg.encode('UTF-8'))
+        except TypeError as e:
+            logging.error("rendering %s: %s", template, e)
+            raise FileNotFoundError
         except jinja2.exceptions.TemplateNotFound:
             raise FileNotFoundError
 
@@ -229,7 +254,7 @@ class TFTPServerProtocol(py3tftp.protocols.TFTPServerProtocol):
         super().__init__(None, loop, None)
         self.env = jinja2.Environment(
             loader = jinja2.FileSystemLoader(options.template),
-            trim_blocks = True, lstrip_blocks = True
+            trim_blocks = True, lstrip_blocks = True, keep_trailing_newline = True
         ) if options.template else None
 
     def datagram_received(self, data, remote_addr, local_addr):
