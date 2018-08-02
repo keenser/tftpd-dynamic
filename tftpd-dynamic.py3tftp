@@ -180,25 +180,15 @@ class NetasciiReader:
 
 class FileWriter(py3tftp.file_io.FileWriter):
     def __init__(self, fname, chunk_size, mode):
-        self.mode = mode
         super().__init__(py3tftp.file_io.sanitize_fname(fname), chunk_size)
-
-    def _open_file(self):
-        if self.mode == b'netascii':
-            return NetasciiReader(open(self.fname, 'xb'))
-        else:
-            return open(self.fname, 'xb')
+        if mode == b'netascii':
+            self._f = NetasciiReader(self._f)
 
 class FileReader(py3tftp.file_io.FileReader):
     def __init__(self, fname, chunk_size, mode):
-        self.mode = mode
         super().__init__(fname, chunk_size)
-
-    def _open_file(self):
-        if self.mode == b'netascii':
-            return NetasciiReader(open(self.fname, 'rb'))
-        else:
-            return open(self.fname, 'rb')
+        if mode == b'netascii':
+            self._f = NetasciiReader(self._f)
 
 class FileNotFound():
     def __init__(self, fname, chunk_size):
@@ -221,7 +211,7 @@ class TemplateReader(FileReader):
 
         ipaddr = ipaddress.ip_address(addr[0])
         if ipaddr.version == 6:
-            ipaddr = ipaddr.ipv4_mapped
+            ipaddr = ipaddr.ipv4_mapped or ipaddr
         ipint = ipaddress.ip_interface((ipaddr, self.opt.setdefault('prefixlen', 24)))
 
         self.opt.update(
@@ -239,10 +229,7 @@ class TemplateReader(FileReader):
         try:
             template = self.env.get_template(self.opt['file'])
             cfg = template.render(self.opt)
-            if self.mode == b'netascii':
-                return NetasciiReader(io.BytesIO(cfg.encode('UTF-8')))
-            else:
-                return io.BytesIO(cfg.encode('UTF-8'))
+            return io.BytesIO(cfg.encode('UTF-8'))
         except TypeError as e:
             logging.error("rendering %s: %s", template, e)
             raise FileNotFoundError
