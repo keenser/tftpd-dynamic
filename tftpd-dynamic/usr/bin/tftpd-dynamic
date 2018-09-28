@@ -31,7 +31,7 @@ except ImportError:
     sys.stderr.write("install py3tftp with 'pip3 install py3tftp'\n")
     sys.exit(1)
 
-pkgversion = "1.5-1"
+pkgversion = "1.5-5"
 servicename = "tftpd-dynamic"
 servicedesc = "tftpd server with dynamic file generation"
 
@@ -183,13 +183,26 @@ class TFTPServerProtocol(py3tftp.protocols.TFTPServerProtocol):
     def datagram_received(self, data, remote_addr, local_addr):
         self.remote_addr = remote_addr
         self.host_interface = local_addr[0]
+        protocol = None
         try:
-            super().datagram_received(data, remote_addr)
+            logging.debug('received: {}'.format(data.decode()))
+
+            first_packet = self.packet_factory.from_bytes(data)
+            protocol = self.select_protocol(first_packet)
+            file_handler_cls = self.select_file_handler(first_packet)
+
+            connect = self.loop.create_datagram_endpoint(
+                lambda: protocol(data, file_handler_cls, remote_addr, self.extra_opts),
+                local_addr=(self.host_interface,
+                            0, ))
+
+            self.loop.create_task(connect)
         except py3tftp.exceptions.BadRequest as e:
             logging.error("datagram_received %s", e)
             pkt = self.packet_factory.create_packet('ERR', code=4, msg='missing mode')
             self.transport.sendto(pkt.to_bytes(), self.remote_addr)
-            self.handle_err_pkt()
+            if protocol:
+                protocol.handle_err_pkt()
 
     def select_file_handler(self, packet):
         if packet.is_wrq():

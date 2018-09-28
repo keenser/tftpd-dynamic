@@ -1,7 +1,7 @@
 ARCH=all
 PKG_NAME=tftpd-dynamic
 LIB=py3tftp
-PKG_VERSION=1.5-1
+PKG_VERSION=1.5-5
 PKG=$(PKG_NAME)_$(PKG_VERSION)_$(ARCH).deb
 
 all: $(PKG_NAME)
