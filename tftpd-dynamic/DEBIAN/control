@@ -1,5 +1,5 @@
 Package: tftpd-dynamic
-Version: 1.5-5
+Version: 1.5-6
 Section: utils
 Priority: optional
 Architecture: all

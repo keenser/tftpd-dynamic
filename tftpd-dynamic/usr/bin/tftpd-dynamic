@@ -31,7 +31,7 @@ except ImportError:
     sys.stderr.write("install py3tftp with 'pip3 install py3tftp'\n")
     sys.exit(1)
 
-pkgversion = "1.5-5"
+pkgversion = "1.5-6"
 servicename = "tftpd-dynamic"
 servicedesc = "tftpd server with dynamic file generation"
 
@@ -198,7 +198,7 @@ class TFTPServerProtocol(py3tftp.protocols.TFTPServerProtocol):
 
             self.loop.create_task(connect)
         except py3tftp.exceptions.BadRequest as e:
-            logging.error("datagram_received %s", e)
+            logging.error("Bad request from %s %s", self.remote_addr, e)
             pkt = self.packet_factory.create_packet('ERR', code=4, msg='missing mode')
             self.transport.sendto(pkt.to_bytes(), self.remote_addr)
             if protocol:

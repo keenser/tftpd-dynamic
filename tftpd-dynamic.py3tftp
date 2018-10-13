@@ -198,7 +198,7 @@ class TFTPServerProtocol(py3tftp.protocols.TFTPServerProtocol):
 
             self.loop.create_task(connect)
         except py3tftp.exceptions.BadRequest as e:
-            logging.error("datagram_received %s", e)
+            logging.error("Bad request from %s %s", self.remote_addr, e)
             pkt = self.packet_factory.create_packet('ERR', code=4, msg='missing mode')
             self.transport.sendto(pkt.to_bytes(), self.remote_addr)
             if protocol:
