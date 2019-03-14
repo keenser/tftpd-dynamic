@@ -92,7 +92,7 @@ def getoptions():
         default=69
     )
     group.add_argument(
-        '--act-timeout',
+        '--ack-timeout',
         type=float,
         default=0.5,
         help="Timeout for each ACK of the lock-step (default: %(default)s)"
@@ -174,7 +174,11 @@ class TemplateReader(py3tftp.file_io.FileReader):
 
 class TFTPServerProtocol(py3tftp.protocols.TFTPServerProtocol):
     def __init__(self, loop, options):
-        super().__init__(None, loop, None)
+        timeouts = {
+                b'ack_timeout': options.ack_timeout,
+                b'timeout': options.timeout
+                }
+        super().__init__(None, loop, timeouts)
         self.env = jinja2.Environment(
             loader = jinja2.FileSystemLoader(options.template),
             trim_blocks = True, lstrip_blocks = True, keep_trailing_newline = True
