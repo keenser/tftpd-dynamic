@@ -1,0 +1,17 @@
+[Unit]
+Description=tftpd-dynamic
+After=network.target tftpd-dynamic.socket
+Requires=tftpd-dynamic.socket
+
+[Service]
+Type=simple
+Restart=on-failure
+RuntimeDirectory=tftpd-dynamic
+User=tftp
+Group=tftp
+PIDFile=/run/tftpd-dynamic/tftpd-dynamic.pid
+EnvironmentFile=-/etc/default/tftpd-dynamic
+ExecStart=/usr/bin/tftpd-dynamic -f -p $OPTIONS
+
+[Install]
+WantedBy=multi-user.target

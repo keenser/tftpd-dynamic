@@ -31,7 +31,7 @@ except ImportError:
     sys.stderr.write("install py3tftp with 'pip3 install py3tftp'\n")
     sys.exit(1)
 
-pkgversion = "1.5-7"
+pkgversion = "1.5-8"
 servicename = "tftpd-dynamic"
 servicedesc = "tftpd server with dynamic file generation"
 

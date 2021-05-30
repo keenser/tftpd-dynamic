@@ -3,4 +3,4 @@
 # get more options by running:
 # tftpd-dynamic -h
 #
-OPTIONS="--uid tftp --gid tftp -r /srv/tftp -t /etc/tftpd-dynamic"
+OPTIONS="-v -r /srv/tftp --timeout 30 -t /etc/tftpd-dynamic"

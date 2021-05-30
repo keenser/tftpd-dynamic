@@ -1,0 +1,9 @@
+[Unit]
+Description=Tftpd-dynamic Socket
+PartOf=tftpd-dynamic.service
+
+[Socket]
+ListenDatagram=[::]:69
+
+[Install]
+WantedBy=sockets.target
