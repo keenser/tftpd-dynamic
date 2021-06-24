@@ -175,8 +175,8 @@ class TemplateReader(py3tftp.file_io.FileReader):
 class TFTPServerProtocol(py3tftp.protocols.TFTPServerProtocol):
     def __init__(self, loop, options):
         timeouts = {
-                b'ack_timeout': options.ack_timeout,
-                b'timeout': options.timeout
+                b'timeout': options.ack_timeout,
+                b'conn_timeout': options.timeout
                 }
         super().__init__(None, loop, timeouts)
         self.env = jinja2.Environment(
